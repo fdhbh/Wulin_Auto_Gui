@@ -1,8 +1,4 @@
 {
-# ==========================================
-# 【系統設定區】
-# ==========================================
-CURRENT_VERSION = "4.0.0"
-# 【修改】貼上 GitHub 上 version.json 的 Raw 網址
-UPDATE_JSON_URL = "https://raw.githubusercontent.com/fdhbh/Wulin_Auto_Gui/main/version.json"
+  "latest_version": "4.0.1",
+  "download_url": "https://raw.githubusercontent.com/你的帳號/你的專案/main/wulin_gui.pyw"
 }
