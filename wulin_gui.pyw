@@ -8,7 +8,6 @@ import configparser
 import threading
 import subprocess
 
-# 【修正】強制將工作目錄切換到腳本所在資料夾，避免 Errno 2
 BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
 os.chdir(BASE_DIR)
 
@@ -34,8 +33,6 @@ try:
     import io
     
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-    
-    # 載入自動更新模組
     from updater import AutoUpdater
     
 except ImportError as e:
@@ -48,9 +45,8 @@ except ImportError as e:
 # ==========================================
 # 【系統設定區】
 # ==========================================
-CURRENT_VERSION = "4.0.0"
-# 【修改】貼上 GitHub 上 version.json 的 Raw 網址
-UPDATE_JSON_URL = "https://raw.githubusercontent.com/fdhbh/Wulin_Auto_Gui/main/version.json"
+CURRENT_VERSION = "4.0.1"
+UPDATE_JSON_URL = "https://raw.githubusercontent.com/fdhbh/Wulin_Auto_Gui/main/version.json" 
 
 CONFIGS_DIR = os.path.join(BASE_DIR, "configs")
 DEFAULT_CONFIG = os.path.join(CONFIGS_DIR, "config.ini")
@@ -67,8 +63,12 @@ def ensure_base_config():
         config.add_section('General')
     if not config.has_option('General', 'EnableAdminElevation'):
         config.set('General', 'EnableAdminElevation', '0')
-        with open(DEFAULT_CONFIG, 'w', encoding='utf-8') as f:
-            config.write(f)
+    # 【新增】記錄上次執行的版本號
+    if not config.has_option('General', 'LastRunVersion'):
+        config.set('General', 'LastRunVersion', '0.0.0')
+        
+    with open(DEFAULT_CONFIG, 'w', encoding='utf-8') as f:
+        config.write(f)
 
 ensure_base_config()
 
@@ -364,7 +364,7 @@ class ArrangerWorker(QThread):
                     return False
                 subprocess.Popen(path, cwd=os.path.dirname(path))
             except Exception as e:
-                self.log_signal.emit(f"❌ 啟提失敗: {e}")
+                self.log_signal.emit(f"❌ 啟動失敗: {e}")
                 return False
 
             time.sleep(delay_load)
@@ -1701,31 +1701,17 @@ class MainWindow(QMainWindow):
         self.process_changelog_and_update()
 
     def process_changelog_and_update(self):
-        file_version = "0.0.0"
-        content = "歡迎使用武林群俠傳輔助系統！\n\n(目前尚無更新說明)"
-
-        if os.path.exists(CHANGELOG_FILE):
-            try:
-                with open(CHANGELOG_FILE, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                    if lines and lines[0].startswith("Version:"):
-                        file_version = lines[0].replace("Version:", "").strip()
-                        content = "".join(lines[1:]).strip()
-                    else:
-                        content = "".join(lines).strip()
-            except Exception as e:
-                print(f"讀取更新說明失敗: {e}")
+        config = configparser.ConfigParser()
+        config.read(DEFAULT_CONFIG, encoding='utf-8')
+        last_run_version = config.get('General', 'LastRunVersion', fallback='0.0.0')
 
         def parse_v(v): return tuple(map(int, v.split(".")))
         
-        if parse_v(CURRENT_VERSION) > parse_v(file_version):
-            self.display_changelog(content)
-            try:
-                with open(CHANGELOG_FILE, "w", encoding="utf-8") as f:
-                    f.write(f"Version: {CURRENT_VERSION}\n")
-                    f.write(content)
-            except Exception as e:
-                print(f"寫入更新說明失敗: {e}")
+        if parse_v(CURRENT_VERSION) > parse_v(last_run_version):
+            self.display_changelog()
+            config.set('General', 'LastRunVersion', CURRENT_VERSION)
+            with open(DEFAULT_CONFIG, 'w', encoding='utf-8') as f:
+                config.write(f)
 
         self.updater = AutoUpdater(self, CURRENT_VERSION, UPDATE_JSON_URL)
         self.updater.check_for_updates()
@@ -1735,8 +1721,7 @@ class MainWindow(QMainWindow):
             if os.path.exists(CHANGELOG_FILE):
                 try:
                     with open(CHANGELOG_FILE, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
-                        content = "".join(lines[1:]).strip() if lines and lines[0].startswith("Version:") else "".join(lines)
+                        content = f.read()
                 except:
                     content = "讀取更新說明失敗。"
             else:
